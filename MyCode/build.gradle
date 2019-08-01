@@ -1,0 +1,14 @@
+apply plugin: 'java-library'
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    tasks.withType(JavaCompile) {
+        options.encoding = "UTF-8"
+    }
+    compileOnly files("D:\\jdk-11.0.1\\bin")
+
+
+}
+
+sourceCompatibility = '1.8'
+targetCompatibility = '1.8'
