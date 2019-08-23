@@ -2,6 +2,8 @@ package com.hdu.xl.mycode;
 
 
 
+import com.sun.org.apache.xerces.internal.util.SynchronizedSymbolTable;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -32,7 +34,7 @@ public class Code1 {
     public static final int SENSING_RANAGE = 30;// 米
     public static final int COMMUINCATION_RANAGE = 60;
     public static final double SORLAR_EFFICIENCY = 0.15;
-    public static final double SOLAR_INTENSITY = 4e-7;// J/s
+    public static final double SOLAR_INTENSITY = 0.12;//4e-7;// J/s
     public static final int INFINITY = 1111111111;
     public static final double THRESHOLD = 0.2;
 
@@ -43,6 +45,7 @@ public class Code1 {
     protected static List<Target> target_list;
     protected static List<Integer> beCoveredTar;//被覆盖的目标
     protected static Graph graph;
+    protected static Graph distanceMatrix;
 
 
     public static void main(String[] args){
@@ -81,15 +84,28 @@ public class Code1 {
             System.out.println("被覆盖的目标集合为："+set);
             counter++;
             calEnergyConsumption(tree);
+            harvestSolar();
             for(Integer i:tree) {
                 System.out.println("源节点消耗能量：" + sensors.get(i).energy_consumption);
                 System.out.println("对应路径"+sensors.get(i).routeToSink);
             }
 
             for(Integer i:sensors.get(tree.get(tree.size()-1)).routeToSink)
-                System.out.println("路径上节点消耗能量："+sensors.get(i).energy_consumption);
-
-
+                System.out.println("路径上节点消耗能量："+sensors.get(i).energy_consumption+" 收集能量"+sensors.get(i).harvest_energy);
+            List<Node> test = new ArrayList<>();
+//            for(int i=0;i<20;i++){
+//                int j = (int)(Math.random()*100)+100;
+//                test.add(sensors.get(j));
+//            }
+            test.addAll(sensors);
+            for (int i=0;i<test.size();i++)
+                System.out.print(test.get(i).id+" ");
+            System.out.println();
+            System.out.println("改良前路径长度 "+calRouteLength(test));
+            System.out.println("改良后路径长度 "+wirelessCharging(test,calRouteLength(test)));
+            for (int i=0;i<test.size();i++)
+                System.out.print(test.get(i).id+" ");
+            System.out.println();
 
             resetSomeValue();
 
@@ -110,19 +126,36 @@ public class Code1 {
             SolarNode solarNode = new SolarNode(SOLAR,i,Math.random()*LENGTH, Math.random()*WIDTH,
                     BATTERY_SIZE,Math.random()*SOLAR_INTENSITY,new ArrayList<Integer>(),new ArrayList<Integer>());
             solarNode.setRoute_weight(0);
+            solarNode.harvest_energy = 0;
             sensors.add(solarNode);
             solar_sensors.add(solarNode);
+
         }
         for (int i=solar_num+1;i<=NODE_NUM;i++){//无线充电节点初始化
             WirelessNode wirelessNode = new WirelessNode(WIRELESS,i,Math.random()*LENGTH,
                     Math.random()*WIDTH,BATTERY_SIZE,new ArrayList<Integer>(),new ArrayList<Integer>());
             wirelessNode.setRoute_weight(0);
+            wirelessNode.harvest_energy = 0;
             sensors.add(wirelessNode);
             wireless_sensors.add(wirelessNode);
         }
         for(int i=0;i<TARGET_NUM;i++){
             Target target = new Target(i,Math.random()*LENGTH,Math.random()*WIDTH,false,new ArrayList<Integer>());
             target_list.add(target);
+        }
+        initDistanceMatrix();
+    }
+
+    public static void initDistanceMatrix(){//初始距离矩阵
+        distanceMatrix = new Graph(sensors.size());
+        for (Node n:sensors)
+            distanceMatrix.vertexList.add(n);
+        for (int i=0;i<sensors.size();i++){
+            for (int j=0;j<sensors.size();j++){
+                double temp = Util.dis_Node_Node(sensors.get(i),sensors.get(j));
+                distanceMatrix.insertEdge(sensors.get(i),sensors.get(j),temp);
+                distanceMatrix.insertEdge(sensors.get(j),sensors.get(i),temp);
+            }
         }
     }
 
@@ -163,7 +196,7 @@ public class Code1 {
         return et+b*Math.pow(Util.dis_Node_Node(si,sj),alpha);
     }
 
-    public static List<Integer> construct_Tree(List<Integer> live_sensors,List<Integer> source_sensors){
+    public static List<Integer> construct_Tree(List<Integer> live_sensors,List<Integer> source_sensors){//返回覆盖目标的源节点
         List<Integer> res = new ArrayList<>();
         live_sensors.clear();source_sensors.clear();
         for(int i=1;i<sensors.size();i++){
@@ -300,11 +333,63 @@ public class Code1 {
     public static void resetSomeValue(){
         for(Node n:sensors){
             n.energy_consumption = 0;
+            n.harvest_energy = 0;
         }
     }
 
+    public static void harvestSolar (){
+        for (SolarNode i:solar_sensors){
+           sensors.get(i.id).harvest_energy += i.solar_intensity*SORLAR_EFFICIENCY;
+
+        }
+    }
     public static double calInterval(List<Integer> treeLeaves){
         return 0.0;
+    }
+
+    public static double calRouteLength(List<Node> chargingList){
+        double route = 0;
+        for (int i=0;i<chargingList.size()-1;i++){
+            route += distanceMatrix.edges[chargingList.get(i).id][chargingList.get(i+1).id];
+        }
+        route += distanceMatrix.edges[chargingList.get(chargingList.size()-1).id][chargingList.get(0).id];
+        return route;
+    }
+
+    public static double wirelessCharging(List<Node> chargingList,double routeLength){ //改良圈法计算TSP路径
+        List<Node> res = new ArrayList<>(chargingList);
+        for (int t=0;t<500;t++){//重复500次
+            for (int i=0;i<chargingList.size();i++){
+                int j=(int)(Math.random()*chargingList.size());
+                Node temp = res.get(i);
+                res.set(i,res.get(j));
+                res.set(j,temp);
+            }
+            int flag = 1;
+            while(flag==1){
+                flag = 0;
+                for (int u=1;u<chargingList.size()-2;u++){
+                    for(int v = u+1;v<chargingList.size()-1;v++){
+                        if (distanceMatrix.edges[res.get(u).id][res.get(v+1).id]+distanceMatrix.edges[res.get(u-1).id][res.get(v).id]<
+                                distanceMatrix.edges[res.get(u).id][res.get(u-1).id]+distanceMatrix.edges[res.get(v).id][res.get(v+1).id]){
+                            for (int k=u; k<=(u+v)/2; k++){
+                                Node temp2 = res.get(k);
+                                res.set(k,res.get(v-(k-u)));
+                                res.set(v-(k-u),temp2);
+                                flag = 1;
+                            }
+                        }
+                    }
+                }
+            }
+            double res_sum = calRouteLength(res);
+            if (res_sum < routeLength){
+                routeLength = res_sum;
+                chargingList.clear();
+                chargingList.addAll(res);
+            }
+        }
+        return routeLength;
     }
 
 

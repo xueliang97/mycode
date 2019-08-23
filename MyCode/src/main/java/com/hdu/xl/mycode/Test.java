@@ -8,19 +8,22 @@ import java.util.List;
 public class Test {
 
     public static void main(String[] args){
-        List<Integer> list=new ArrayList<>();
-        list.add(1);
-        System.out.println(list);
-        test(list);
-        System.out.println(list);
-
-
+        int[] data = {1,2,3};
+        List<Integer> tr = new ArrayList<>();
+        tr.add(1);tr.add(2);
+        tt(tr);
+        System.out.println(tr);
     }
 
-    public static void test(List<Integer> list){
-        list = new ArrayList<>();
-        list.add(2);
+    public static void tt(List<Integer> t){
+        List res = new ArrayList();
+        res.add(3);
+        t.clear();
+        t.addAll(res);
     }
+
+
+
 
 
 }

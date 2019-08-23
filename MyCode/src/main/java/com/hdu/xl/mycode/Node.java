@@ -14,6 +14,7 @@ public abstract class Node {
     protected double node_weight;
     protected List<Integer> NodeCoverTar;
     protected List<Integer> routeToSink;
+    protected double harvest_energy;
     protected double route_weight;
     public Node(int type, int id, double x_coordinate, double y_coordinate, double residual_energy, List<Integer> NodeCoverTar, List<Integer> routeToSink){
         this.type = type;
